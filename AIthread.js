@@ -145,6 +145,7 @@
     return sel && sel.rangeCount > 0 ? sel.toString() : '';
   }
 
+  
   function attachToEditor(el) {
     if (el._ai_help_wired) return;
     el._ai_help_wired = true;
@@ -176,6 +177,142 @@
       }));
     });
   }
+
+  // 追加: ログ出力（必要に応じて消してください）
+const DBG = false;
+const log = (...a) => { if (DBG) console.log('[ai-help]', ...a); };
+
+// エディタ検出を強化（kintoneでよくある role=textbox のdivにも対応）
+function findEditors() {
+  const tas = Array.from(document.querySelectorAll('textarea'))
+    .filter(el => el.offsetParent !== null && el.clientHeight > 0);
+  const edits = Array.from(document.querySelectorAll('[contenteditable="true"], div[role="textbox"]'))
+    .filter(el => el.offsetParent !== null && el.clientHeight > 0);
+  const all = [...new Set([...tas, ...edits])];
+  if (DBG) log('editors found:', all.length, all);
+  return all;
+}
+
+// contenteditableは selectionStart が無いので、行頭チェックを緩める
+function isAtLineStart(el) {
+  if (el.tagName === 'TEXTAREA') {
+    try {
+      const value = el.value ?? '';
+      const caretPos = el.selectionStart != null ? el.selectionStart : value.length;
+      const before = value.slice(0, caretPos);
+      const currentLine = before.split(/\n/).pop() || '';
+      return currentLine.trim().length === 0;
+    } catch { return true; }
+  }
+  // contenteditable: とりあえず「テキストが空 or 末尾が空白」のときはOKにする
+  const txt = getEditorText(el);
+  return txt.trim().length === 0 || /\s$/.test(txt);
+}
+
+// エディタに小さな浮遊ボタン（手動トリガー）も追加しておくと安心
+function ensureFloatingButton(el) {
+  if (el._ai_help_btn) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = '✨ AI';
+  btn.style.cssText = `
+    position:absolute; right:8px; bottom:8px; z-index:9998;
+    font-size:12px; padding:6px 8px; border:0; border-radius:8px;
+    background:rgba(37,99,235,.12); color:#1d4ed8; cursor:pointer;
+  `;
+  // 親要素が相対配置でないと位置が合わない場合があるのでフォールバック
+  const parent = el.parentElement || el;
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'relative';
+  parent.insertBefore(wrapper, el);
+  wrapper.appendChild(el);
+  wrapper.appendChild(btn);
+  el._ai_help_btn = btn;
+
+  btn.addEventListener('click', () => {
+    showPop(el, (aiText) => {
+      if (!aiText) return;
+      const draft = getEditorText(el);
+      const merged = (INSERT_MODE === 'replace')
+        ? aiText
+        : (draft ? (draft.replace(/[ \t]*$/, '') + '\n\n' + aiText) : aiText);
+      setEditorText(el, merged);
+    }, () => ({
+      draft: getEditorText(el),
+      selection: getSelectionText(),
+      title: document.title,
+      url: location.href,
+      surface: 'kintone-space-thread'
+    }));
+  });
+}
+
+function attachToEditor(el) {
+  if (el._ai_help_wired) return;
+  el._ai_help_wired = true;
+  log('attach editor', el);
+
+  // 代替ショートカット: Cmd/Ctrl + K でもポップを出せるように
+  el.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'k')) {
+      e.preventDefault();
+      log('open by Cmd/Ctrl+K');
+      showPop(el, (aiText) => {
+        if (!aiText) return;
+        const draft = getEditorText(el);
+        const merged = (INSERT_MODE === 'replace')
+          ? aiText
+          : (draft ? (draft.replace(/[ \t]*$/, '') + '\n\n' + aiText) : aiText);
+        setEditorText(el, merged);
+      }, () => ({
+        draft: getEditorText(el),
+        selection: getSelectionText(),
+        title: document.title,
+        url: location.href,
+        surface: 'kintone-space-thread'
+      }));
+    }
+  });
+
+  // 本来のトリガー: "/"（全角／は無視されるので注意）
+  el.addEventListener('keydown', (e) => {
+    // 日本語入力中（composition中）はスキップ
+    if (e.isComposing) return;
+    // 一部環境で e.key が "/" でなく "Divide" になる例は稀だが、基本 "/" を見る
+    if (e.key !== TRIGGER_KEY) return;
+
+    // 行頭チェックを緩める（contenteditableに配慮）
+    if (!isAtLineStart(el)) return;
+
+    e.preventDefault();
+    log('open by "/" at line start');
+    showPop(el, (aiText) => {
+      if (!aiText) return;
+      const draft = getEditorText(el);
+      const merged = (INSERT_MODE === 'replace')
+        ? aiText
+        : (draft ? (draft.replace(/[ \t]*$/, '') + '\n\n' + aiText) : aiText);
+      setEditorText(el, merged);
+    }, () => ({
+      draft: getEditorText(el),
+      selection: getSelectionText(),
+      title: document.title,
+      url: location.href,
+      surface: 'kintone-space-thread'
+    }));
+  });
+
+  // フォーカス時に浮遊ボタンを用意（任意：安心の手動トリガー）
+  el.addEventListener('focus', () => {
+    try { ensureFloatingButton(el); } catch {}
+  }, { once: true });
+}
+
+// 監視も少し強化（一定間隔で保険的に再アタッチ）
+const mo = new MutationObserver(() => { findEditors().forEach(attachToEditor); });
+mo.observe(document.documentElement, { childList: true, subtree: true });
+findEditors().forEach(attachToEditor);
+setInterval(() => { findEditors().forEach(attachToEditor); }, 1500); // 保険
 
   function getEditorText(el) {
     if (el.tagName === 'TEXTAREA') return el.value;
