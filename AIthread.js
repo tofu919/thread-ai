@@ -224,3 +224,6 @@
   setInterval(() => { findEditors().forEach(attachToEditor); }, 2000);
   findEditors().forEach(attachToEditor);
 })();
+
+console.log("エディタ候補:", findEditors());
+
