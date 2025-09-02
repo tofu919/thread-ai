@@ -1,7 +1,7 @@
 ;(() => {
   // ======== 設定ここから ========
   // GAS WebアプリURLに差し替え
-  const AI_ENDPOINT_URL = 'https://script.google.com/macros/s/XXXX/exec';
+  const AI_ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbxfbgiH_UbANgCPusGIW1zsTxhp3WUBe_eqBlsmwMVIBYdUhUjbZNzjEGITaiB4XwJ6jQ/exec';
   // 'replace' = 下書きを置換 / 'append' = 末尾追記
   const INSERT_MODE = 'append';
   // 空行で "/" を押すとポップ出す（Notion風）
