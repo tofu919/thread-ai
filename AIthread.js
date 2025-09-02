@@ -7,6 +7,10 @@
   const DBG = false;              // trueにするとコンソールにログが出ます
   // ======== 設定ここまで ========
 
+  // ---- デバッグON/OFF ----
+  const DBG = true;
+  const dlog = (...a) => { if (DBG) console.log('[ai-help]', ...a); };
+
   const log = (...a) => { if (DBG) console.log('[ai-help]', ...a); };
 
   // スタイル
@@ -165,13 +169,29 @@
 
   // エディタ検出・アタッチ
   function findEditors() {
-    return Array.from(document.querySelectorAll('textarea,[contenteditable="true"],div[role="textbox"]'))
-      .filter(el => el.offsetParent !== null && el.clientHeight > 0);
+  // textarea, contenteditable, role=textbox の全部を候補に
+  const els = Array.from(document.querySelectorAll(
+    'textarea, [contenteditable="true"], div[role="textbox"]'
+  )).filter(el => el.offsetParent !== null && el.clientHeight > 0);
+
+  // ログ出力（検出数と要素）
+  dlog('editors found:', els.length, els);
+
+  // 視覚確認のため一旦枠線（フォーカスの邪魔なら消してOK）
+  els.forEach(el => {
+    el.style.outline = '1px dashed #60a5fa';
+    el.style.outlineOffset = '2px';
+  });
+
+    return els;
   }
+
   function attachToEditor(el) {
     if (el._ai_help_wired) return;
     el._ai_help_wired = true;
-    log('attach', el);
+    dlog('attach editor:', el);
+    // ...（既存処理の続き）...
+  }
 
     // "/" で開く
     el.addEventListener('keydown', (e) => {
@@ -219,10 +239,16 @@
   }
 
   // 監視して常にアタッチ
-  const mo = new MutationObserver(() => { findEditors().forEach(attachToEditor); });
-  mo.observe(document.documentElement, { childList: true, subtree: true });
-  setInterval(() => { findEditors().forEach(attachToEditor); }, 2000);
-  findEditors().forEach(attachToEditor);
+  const mo = new MutationObserver(() => {
+    dlog('mutation observed');   // ← この1行を追加
+    findEditors().forEach(attachToEditor);
+  });
+
+　window._ai_debug = {
+    findEditors,
+    showPop
+  };
+  dlog('window._ai_debug exported');
 })();
 
 console.log("エディタ候補:", findEditors());
